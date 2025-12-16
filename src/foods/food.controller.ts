@@ -13,6 +13,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FoodEntity } from './food.entity';
+import { FoodOptionEntity } from './food-option.entity';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
@@ -30,72 +31,74 @@ import { ApiKeyGuard } from '../common/guards/api-key.guard';
 @Controller('foods')
 export class FoodController {
   constructor(
-    @InjectRepository(FoodEntity)
-    private repo: Repository<FoodEntity>,
+    @InjectRepository(FoodEntity) private foodRepo: Repository<FoodEntity>,
+    @InjectRepository(FoodOptionEntity) private optionRepo: Repository<FoodOptionEntity>,
   ) {}
 
-  // ---------------- GET ----------------
   @Get()
   findAll() {
-    return this.repo.find({
-      where: { is_deleted: false },
-    });
+    return this.foodRepo.find({ where: { is_deleted: false }, relations: ['options'] });
   }
 
-  // ---------------- POST ----------------
   @Post()
-@ApiConsumes('multipart/form-data')
-@ApiBody({
-  schema: {
-    type: 'object',
-    properties: {
-      name: { type: 'string' },
-      state: { type: 'boolean' },
-      image: {
-        type: 'string',
-        format: 'binary',
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        state: { type: 'boolean' },
+        image: { type: 'string', format: 'binary' },
+        options: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              price: { type: 'number' },
+            },
+          },
+        },
       },
     },
-  },
-})
-@UseInterceptors(
-  FileInterceptor('image', {
-    storage: diskStorage({
-      destination: './uploads/foods',
-      filename: (_, file, cb) => {
-        cb(null, Date.now() + extname(file.originalname));
-      },
+  })
+  @UseInterceptors(
+    FileInterceptor('image', {
+      storage: diskStorage({
+        destination: './uploads/foods',
+        filename: (_, file, cb) => {
+          cb(null, Date.now() + extname(file.originalname));
+        },
+      }),
     }),
-  }),
-)
-create(
-  @Body() body: { name: string; state: boolean },
-  @UploadedFile() file?: Express.Multer.File,
-) {
-  return this.repo.save({
-    name: body.name,
-    state: body.state,
-    image_url: file ? `/uploads/foods/${file.filename}` : null,
-  });
-}
+  )
+  async create(
+    @Body() body: { name: string; state: boolean; options?: { name: string; price: number }[] },
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    const food = this.foodRepo.create({
+      name: body.name,
+      state: body.state,
+      image_url: file ? `/uploads/foods/${file.filename}` : null,
+    });
 
+    if (body.options?.length) {
+      food.options = body.options.map(opt => this.optionRepo.create({ name: opt.name, price: opt.price }));
+    }
 
-  // ---------------- PATCH ----------------
+    return this.foodRepo.save(food);
+  }
+
   @Patch(':id/state')
   updateState(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { state: boolean },
   ) {
-    return this.repo.update(id, {
-      state: body.state,
-    });
+    return this.foodRepo.update(id, { state: body.state });
   }
 
-  // ---------------- SOFT DELETE ----------------
   @Patch(':id/soft-delete')
   softDelete(@Param('id', ParseIntPipe) id: number) {
-    return this.repo.update(id, {
-      is_deleted: true,
-    });
+    return this.foodRepo.update(id, { is_deleted: true });
   }
 }

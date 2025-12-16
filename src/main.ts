@@ -10,6 +10,12 @@ async function bootstrap() {
   // serve static files
   app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
 
+  app.enableCors({
+    origin: 'http://localhost:3000', // อนุญาตเฉพาะ frontend ของคุณ
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true, // ถ้ามี cookie/session
+  });
+
   const config = new DocumentBuilder()
     .setTitle('POS API')
     .setDescription('POS Backend API')
@@ -20,6 +26,6 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
-  await app.listen(3000);
+  await app.listen(8000);
 }
 bootstrap();

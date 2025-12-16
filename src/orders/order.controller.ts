@@ -72,7 +72,7 @@ export class OrderController {
   /**
    * เพิ่มอาหารลงบิล
    */
-  @Post(':id/items')
+  @Patch(':id/items')
   async addItem(
     @Param('id') id: number,
     @Body() dto: AddOrderItemDto,
@@ -116,20 +116,28 @@ export class OrderController {
   /**
    * ปิดบิล / ชำระเงิน
    */
-  @Patch(':id/pay')
-  async pay(
-    @Param('id') id: number,
-    @Body() dto: PayOrderDto,
-  ) {
-    const order = await this.orderRepo.findOneBy({ id });
+ /**
+ * ปิดบิล / ชำระเงิน ตาม table_id
+ */
+@Patch(':tableId/pay')
+async pay(
+  @Param('tableId') tableId: number,
+  @Body() dto: PayOrderDto,
+) {
+  // หา order ที่เปิดอยู่ของโต๊ะนี้
+  const order = await this.orderRepo.findOne({
+    where: { table_id: tableId, status: OrderStatus.OPEN },
+  });
 
-    if (!order || order.status !== OrderStatus.OPEN) {
-      throw new BadRequestException('Order cannot be paid');
-    }
+  if (!order) {
+    throw new BadRequestException('Table has no open order or order already paid');
+  }
 
-    return this.orderRepo.update(id, {
-      status: OrderStatus.PAID,
-      discount: dto.discount || 0,
-      total: order.sub_total - (dto.discount || 0),
-      closed_at: new Date(),    });
-  }}
+  return this.orderRepo.update(order.id, {
+    status: OrderStatus.PAID,
+    discount: dto.discount || 0,
+    total: order.sub_total - (dto.discount || 0),
+    closed_at: new Date(),
+  });
+}}
+
