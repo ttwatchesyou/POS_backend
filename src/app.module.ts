@@ -14,7 +14,7 @@ import { OrderModule } from './orders/order.module';
       port: 3306,
       username: 'root',
       password: '',
-      database: 'pos',
+      database: 'test_pos_db',
       autoLoadEntities: true,
       synchronize: true,
     }),
