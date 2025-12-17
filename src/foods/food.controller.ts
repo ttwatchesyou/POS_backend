@@ -48,6 +48,7 @@ export class FoodController {
       properties: {
         name: { type: 'string' },
         state: { type: 'boolean' },
+         price: { type: 'number' },
         image: { type: 'string', format: 'binary' },
         options: {
           type: 'array',
@@ -73,12 +74,13 @@ export class FoodController {
     }),
   )
   async create(
-    @Body() body: { name: string; state: boolean; options?: { name: string; price: number }[] },
+    @Body() body: { name: string; state: boolean; price: number; options?: { name: string; price: number }[] },
     @UploadedFile() file?: Express.Multer.File,
   ) {
     const food = this.foodRepo.create({
       name: body.name,
       state: body.state,
+      price: body.price,
       image_url: file ? `/uploads/foods/${file.filename}` : null,
     });
 

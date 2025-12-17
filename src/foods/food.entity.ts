@@ -12,6 +12,9 @@ export class FoodEntity {
   @Column({ type: 'boolean', default: true })
   state: boolean;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+price: number;
+
   @Column({ type: 'varchar', length: 255, nullable: true })
   image_url: string | null;  
 

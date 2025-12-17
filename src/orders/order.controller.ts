@@ -33,9 +33,7 @@ export class OrderController {
     private readonly itemRepo: Repository<OrderItemEntity>,
   ) {}
 
-  /**
-   * ดึงบิลทั้งหมด
-   */
+
   @Get()
   findAll() {
     return this.orderRepo.find({
@@ -45,12 +43,8 @@ export class OrderController {
     });
   }
 
-  /**
-   * เปิดบิลใหม่
-   */
   @Post()
   async create(@Body() dto: CreateOrderDto) {
-    // เช็คว่ามีบิลที่โต๊ะนี้เปิดอยู่ไหม
     const exist = await this.orderRepo.findOne({
       where: {
         table_id: dto.table_id,
@@ -66,18 +60,17 @@ export class OrderController {
     return this.orderRepo.save({
       table_id: dto.table_id,
       order_no: `ORD-${Date.now()}`,
+      status: OrderStatus.OPEN,
     });
   }
 
-  /**
-   * เพิ่มอาหารลงบิล
-   */
-  @Patch(':id/items')
+ 
+  @Patch(':orderId/items')
   async addItem(
-    @Param('id') id: number,
+    @Param('orderId') orderId: number,
     @Body() dto: AddOrderItemDto,
   ) {
-    const order = await this.orderRepo.findOneBy({ id });
+    const order = await this.orderRepo.findOneBy({ id: orderId });
 
     if (!order || order.status !== OrderStatus.OPEN) {
       throw new BadRequestException('Order is not open');
@@ -86,7 +79,7 @@ export class OrderController {
     const totalPrice = dto.price * dto.qty;
 
     await this.itemRepo.save({
-      order_id: id,
+      order_id: orderId,
       food_id: dto.food_id,
       food_name: dto.food_name,
       price: dto.price,
@@ -95,9 +88,9 @@ export class OrderController {
       total_price: totalPrice,
     });
 
-    // คำนวณยอดใหม่
+
     const items = await this.itemRepo.find({
-      where: { order_id: id },
+      where: { order_id: orderId },
     });
 
     const subTotal = items.reduce(
@@ -105,39 +98,37 @@ export class OrderController {
       0,
     );
 
-    await this.orderRepo.update(id, {
+    await this.orderRepo.update(orderId, {
       sub_total: subTotal,
-      total: subTotal - order.discount,
+      total: subTotal - (order.discount || 0),
     });
 
     return { success: true };
   }
 
-  /**
-   * ปิดบิล / ชำระเงิน
-   */
- /**
- * ปิดบิล / ชำระเงิน ตาม table_id
- */
-@Patch(':tableId/pay')
-async pay(
-  @Param('tableId') tableId: number,
-  @Body() dto: PayOrderDto,
-) {
-  // หา order ที่เปิดอยู่ของโต๊ะนี้
-  const order = await this.orderRepo.findOne({
-    where: { table_id: tableId, status: OrderStatus.OPEN },
-  });
+  @Patch(':tableId/pay')
+  async pay(
+    @Param('tableId') tableId: number,
+    @Body() dto: PayOrderDto,
+  ) {
+    const order = await this.orderRepo.findOne({
+      where: {
+        table_id: tableId,
+        status: OrderStatus.OPEN,
+      },
+    });
 
-  if (!order) {
-    throw new BadRequestException('Table has no open order or order already paid');
+    if (!order) {
+      throw new BadRequestException(
+        'Table has no open order or order already paid',
+      );
+    }
+
+    return this.orderRepo.update(order.id, {
+      status: OrderStatus.PAID,
+      discount: dto.discount || 0,
+      total: order.sub_total - (dto.discount || 0),
+      closed_at: new Date(),
+    });
   }
-
-  return this.orderRepo.update(order.id, {
-    status: OrderStatus.PAID,
-    discount: dto.discount || 0,
-    total: order.sub_total - (dto.discount || 0),
-    closed_at: new Date(),
-  });
-}}
-
+}
